@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mi Juego RPG</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            height: 100%;
+            font-family: 'Arial', sans-serif;
+            color: white;
+        }
+
+        .container {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 816px;  /* Ancho estándar RPG Maker */
+            height: 624px; /* Alto estándar RPG Maker */
+            margin: 0 auto;
+            display: none;
+            background: #000;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        #loader {
+            text-align: center;
+            padding: 20px;
+        }
+
+        #gameImage {
+            max-width: 300px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        .game-title {
+            font-size: 2em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        #playButton {
+            padding: 15px 40px;
+            font-size: 1.2em;
+            background: #4CAF50;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #playButton:hover {
+            background: #45a049;
+        }
+
+        iframe {
+            width: 816px;
+            height: 624px;
+            border: none;
+            background: #000;
+        }
+
+        #fullscreenButton {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 10px;
+            background: rgba(0,0,0,0.5);
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            z-index: 1000;
+        }
+
+        .loading-progress {
+            width: 300px;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            margin: 10px auto;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: #4CAF50;
+            border-radius: 10px;
+            transition: width 0.3s;
+        }
+
+        .error-message {
+            color: #ff5555;
+            display: none;
+            margin-top: 10px;
+        }
+
+        .game-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .game-description {
+            max-width: 600px;
+            margin: 20px auto;
+            line-height: 1.6;
+            color: #ccc;
+        }
+
+        .game-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .button {
+            padding: 12px 25px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #2c3e50;
+            color: white;
+        }
+
+        .button.primary {
+            background: #4CAF50;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .game-options {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        #volumeControl {
+            width: 100px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loader">
+            <div class="game-header">
+                <img id="gameImage" src="game-logo.png" alt="Logo del Juego">
+                <h1 class="game-title">Mi Juego RPG</h1>
+                <p class="game-description">
+                    ¡Embárcate en una aventura épica! Explora un mundo mágico lleno de misterios y desafíos.
+                </p>
+            </div>
+            
+            <div id="gameStatus">Preparando la aventura...</div>
+            
+            <div class="game-controls">
+                <button id="playButton" class="button primary">Iniciar Aventura</button>
+                <button id="optionsButton" class="button">Opciones</button>
+            </div>
+            
+            <div class="loading-progress">
+                <div class="progress-bar"></div>
+            </div>
+            
+            <div class="error-message">
+                No se pudo iniciar la aventura. ¡Inténtalo de nuevo!
+            </div>
+        </div>
+        
+        <div id="gameContainer">
+            <div class="game-options">
+                <input type="range" id="volumeControl" min="0" max="100" value="100">
+                <button id="fullscreenButton" class="button">⛶</button>
+            </div>
+            <iframe id="gameFrame" src=""></iframe>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000';
+        const gameFrame = document.getElementById('gameFrame');
+        const loader = document.getElementById('loader');
+        const gameContainer = document.getElementById('gameContainer');
+        const gameStatus = document.getElementById('gameStatus');
+        const loadingProgress = document.querySelector('.loading-progress');
+        const progressBar = document.querySelector('.progress-bar');
+        const errorMessage = document.querySelector('.error-message');
+
+        async function startGame() {
+            try {
+                console.log('Conectando con servidor...');
+                loadingProgress.style.display = 'block';
+                errorMessage.style.display = 'none';
+                progressBar.style.width = '0%';
+
+                // Verificar conexión con el servidor
+                const response = await fetch(`${API_URL}/api/game/status`);
+                const data = await response.json();
+                console.log('Estado del juego:', data);
+                progressBar.style.width = '30%';
+
+                // Iniciar el juego
+                const startResponse = await fetch(`${API_URL}/api/game/start`, { 
+                    method: 'POST' 
+                });
+                progressBar.style.width = '60%';
+
+                // Mostrar juego en el iframe
+                gameContainer.style.display = 'block';
+                gameFrame.src = `${API_URL}/game`;
+                showMessage('Cargando juego...');
+                progressBar.style.width = '90%';
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Error: Verifica que el servidor (app.py) esté ejecutándose');
+            }
+        }
+
+        // Event listeners
+        gameFrame.onload = () => {
+            progressBar.style.width = '100%';
+            loader.style.display = 'none';
+            showMessage('¡Juego cargado!');
+        };
+
+        // Inicialización
+        window.onload = async () => {
+            try {
+                const response = await fetch(`${API_URL}/api/health`);
+                if (response.ok) {
+                    showMessage('Servidor conectado - Listo para jugar');
+                }
+            } catch {
+                showError('Servidor no disponible - Ejecuta app.py');
+            }
+        };
+
+        // Event handlers
+        document.getElementById('playButton').onclick = startGame;
+        fullscreenButton.onclick = () => gameContainer.requestFullscreen().catch(console.error);
+
+        function showMessage(text) {
+            gameStatus.textContent = text;
+            console.log('Status:', text);
+        }
+
+        function showError(message) {
+            loadingProgress.style.display = 'none';
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            gameStatus.textContent = 'Error';
+            console.error(message);
+        }
+    </script>
+</body>
+</html>
